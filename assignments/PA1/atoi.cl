@@ -55,7 +55,7 @@ overflow.
 *)
      a2i(s : String) : Int {
         if s.length() = 0 then 0 else
-	if s.substr(0,1) = "-" then ~a2i_aux(s.substr(1,s.length()-1)) else
+	    if s.substr(0,1) = "-" then ~a2i_aux(s.substr(1,s.length()-1)) else
         if s.substr(0,1) = "+" then a2i_aux(s.substr(1,s.length()-1)) else
            a2i_aux(s)
         fi fi fi

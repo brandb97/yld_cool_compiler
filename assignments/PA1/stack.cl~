@@ -1,0 +1,106 @@
+(*
+ *  CS164 Fall 94
+ *
+ *  Programming Assignment 1
+ *    Implementation of a simple stack machine.
+ *
+ *  Skeleton file
+ *)
+
+class StackCommand inherits A2I {
+
+   cmd: String;
+   nxt: StackCommand;
+
+   init_args(c: String, n: StackCommand): StackCommand {
+      {
+         cmd <- c;
+         nxt <- n;
+         self;
+      }
+   };
+
+   init(c: String): StackCommand {
+      if c = "d" then
+         (new StackCommandDisplay).init_args(c, self)
+      else if c = "e" then
+         (new StackCommandEva).init_args(c, self)
+      else if c = "s" then
+         (new StackCommandSwap).init_args(c, self)
+      else if c = "+" then
+         (new StackCommandAdd).init_args(c, self)
+      else if c = "x" then
+         (new StackCommandStop).init_args(c, self)
+      else
+         self
+      fi fi fi fi fi
+   };
+
+   getcmd(): String { cmd };
+   getnxt(): StackCommand { nxt };
+
+   action(): StackCommand {
+      case self of
+         d: StackCommandDisplay => d.action();
+         o: StackCommand => (new StackCommand);
+      esac
+   };
+
+};
+
+class StackCommandSwap inherits StackCommand {
+
+   action(): StackCommand { (new StackCommand) };
+};
+
+class StackCommandDisplay inherits StackCommand {
+   display(s: StackCommand): Object {
+      if (isvoid s) then
+         1
+      else
+         { 
+            (new IO).out_string(s.getcmd());
+            self.display(s.getnxt());
+            1;
+         }
+      fi
+   };
+
+   action(): StackCommand {
+      {
+         self.display(nxt);
+         nxt;
+      }
+   };   
+};
+
+class StackCommandEva inherits StackCommand {
+   action(): StackCommand { (new StackCommand) };
+};
+
+class StackCommandAdd inherits StackCommand {
+   action(): StackCommand { (new StackCommand) };
+};
+
+class StackCommandStop inherits StackCommand {
+   action(): StackCommand { (new StackCommand) };
+};
+
+class Main inherits IO {
+
+   s: StackCommand <- (new StackCommand);
+
+   main() : Object {
+      while 0 = 0 loop
+         {
+            out_string("> ");
+            if (isvoid s) then
+               s <- (new StackCommand).init(in_string()).action()
+            else
+               s <- s.init(in_string()).action()
+            fi;
+         }
+      pool
+   };
+
+};
