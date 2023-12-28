@@ -51,7 +51,7 @@
       // Set the line number of the current non-terminal:
       // ***********************************************
       // You can access the line numbers of the i'th item with @i, just
-      // like you acess the value of the i'th exporession with $i.
+      // like you acess the value of the i'th expression with $i.
       //
       // Here, we choose the line number of the last INT_CONST (@3) as the
       // line number of the resulting expression (@$). You are free to pick
@@ -135,9 +135,32 @@
     %type <class_> class
     
     /* You will want to change the following line. */
-    %type <features> dummy_feature_list
-    
+    %type <features> feature_list
+    %type <feature> feature
+    %type <formals> formal_list
+    %type <formals> non_nil_formal_list
+    %type <formal> formal
+    %type <cases> case_list
+    %type <case_> case
+    %type <expression> expression
+    %type <expressions> semi_expression_list
+    %type <expressions> parameters
+    %type <expression> opt_init_expr
+    %type <expression> let_expr
+    %type <expressions> non_nil_parameters
+    %type <expression> init_let_expr
+
     /* Precedence declarations go here. */
+    %left LET
+    %right ASSIGN
+    %left NOT
+    %left LE '<' '='
+    %left '+' '-'
+    %left '*' '/'
+    %left ISVOID
+    %left '~'
+    %left '@'
+    %left '.'
     
     
     %%
@@ -155,20 +178,208 @@
     { $$ = append_Classes($1,single_Classes($2)); 
     parse_results = $$; }
     ;
-    
+
     /* If no parent is specified, the class inherits from the Object class. */
-    class	: CLASS TYPEID '{' dummy_feature_list '}' ';'
+    class	: CLASS TYPEID '{' feature_list '}' ';'
     { $$ = class_($2,idtable.add_string("Object"),$4,
     stringtable.add_string(curr_filename)); }
-    | CLASS TYPEID INHERITS TYPEID '{' dummy_feature_list '}' ';'
+    | CLASS TYPEID INHERITS TYPEID '{' feature_list '}' ';'
     { $$ = class_($2,$4,$6,stringtable.add_string(curr_filename)); }
+    | error ';'
     ;
     
-    /* Feature list may be empty, but no empty features in list. */
-    dummy_feature_list:		/* empty */
-    {  $$ = nil_Features(); }
-    
-    
+    /* Feature list may be empty, but no empty features in list. e.g.
+      dummy_feature_list:
+      {  $$ = nil_Features(); }
+    */
+    feature_list
+    :
+    { $$ = nil_Features(); }
+    | feature_list feature
+    { SET_NODELOC(@2);
+    $$ = append_Features($1,single_Features($2)); }
+    ;
+
+    feature
+    : OBJECTID '(' formal_list ')' ':' TYPEID '{' expression '}' ';'
+    { SET_NODELOC(@8);
+    $$ = method($1,$3,$6,$8); }
+    | OBJECTID ':' TYPEID opt_init_expr ';'
+    { SET_NODELOC(@4);
+    $$ = attr($1,$3,$4); }
+    | error ';'
+    ;
+
+    formal_list
+    : /* nil */
+    { $$ = nil_Formals(); }
+    | non_nil_formal_list
+    { $$ = $1; }
+    ;
+
+    non_nil_formal_list
+    : formal
+    { $$ = single_Formals($1); }
+    | non_nil_formal_list ',' formal
+    { SET_NODELOC(@3);
+    $$ = append_Formals($1,single_Formals($3)); }
+    ;
+
+    formal
+    : OBJECTID ':' TYPEID
+    { SET_NODELOC(@3);
+    $$ = formal($1, $3); }
+    ;
+
+    expression
+    : OBJECTID ASSIGN expression
+    { SET_NODELOC(@3);
+    $$ = assign($1,$3); }
+    | expression '@' TYPEID '.' OBJECTID '(' parameters ')'
+    { SET_NODELOC(@7);
+    $$ = static_dispatch($1,$3,$5,$7); }
+    | expression '.' OBJECTID '(' parameters ')'
+    { SET_NODELOC(@5);
+    $$ = dispatch($1,$3,$5); }
+    | OBJECTID '(' parameters ')'
+    { SET_NODELOC(@3);
+    $$ = dispatch(object(idtable.add_string("self")),$1,$3); }
+    | IF expression THEN expression ELSE expression FI
+    { SET_NODELOC(@6);
+    $$ = cond($2,$4,$6); }
+    | WHILE expression LOOP expression POOL
+    { SET_NODELOC(@4);
+    $$ = loop($2,$4); }
+    | '{' semi_expression_list '}'
+    { SET_NODELOC(@2);
+    $$ = block($2); }
+    | LET OBJECTID ':' TYPEID opt_init_expr let_expr
+    { SET_NODELOC(@6);
+    $$ = let($2,$4,$5,$6); }
+    | LET error OBJECTID ':' TYPEID opt_init_expr let_expr
+    { SET_NODELOC(@7);
+    $$ = let($3,$5,$6,$7); }
+    | CASE expression OF case_list ESAC
+    { SET_NODELOC(@4);
+    $$ = typcase($2,$4); }
+    | NEW TYPEID
+    { SET_NODELOC(@2);
+    $$ = new_($2); }
+    | ISVOID expression
+    { SET_NODELOC(@2);
+    $$ = isvoid($2); }
+    | expression '+' expression
+    { SET_NODELOC(@3);
+    $$ = plus($1,$3); }
+    | expression '-' expression
+    { SET_NODELOC(@3);
+    $$ = sub($1,$3); }
+    | expression '*' expression
+    { SET_NODELOC(@3);
+    $$ = mul($1,$3); }
+    | expression '/' expression
+    { SET_NODELOC(@3);
+    $$ = divide($1,$3); }
+    | '~' expression
+    { SET_NODELOC(@2);
+    $$ = neg($2); }
+    | expression LE expression
+    { SET_NODELOC(@3);
+    $$ = leq($1,$3); }
+    | expression '<' expression
+    { SET_NODELOC(@3);
+    $$ = lt($1,$3); }
+    | expression '=' expression
+    { SET_NODELOC(@3);
+    $$ = eq($1,$3); }
+    | NOT expression
+    { SET_NODELOC(@2);
+    $$ = comp($2); }
+    | '(' expression ')'
+    { SET_NODELOC(@2);
+    $$ = $2; }
+    | OBJECTID
+    { SET_NODELOC(@1);
+    $$ = object($1); }
+    | INT_CONST
+    { SET_NODELOC(@1);
+    $$ = int_const($1); }
+    | STR_CONST
+    { SET_NODELOC(@1);
+    $$ = string_const($1); }
+    | BOOL_CONST
+    { SET_NODELOC(@1);
+    $$ = bool_const($1); }
+    ;
+
+    parameters /* comma separated expressions which are parameters */
+    : { $$ = nil_Expressions(); }
+    | non_nil_parameters
+    { $$ = $1; }
+    ;
+
+    non_nil_parameters
+    : expression
+    { $$ = single_Expressions($1); }
+    | non_nil_parameters ',' expression
+    { SET_NODELOC(@3);
+    $$ = append_Expressions($1,single_Expressions($3)); }
+    ;
+
+    semi_expression_list /* semicolon separated expressions */
+    :
+    { $$ = nil_Expressions(); }
+    | semi_expression_list expression ';'
+    { SET_NODELOC(@3);
+    $$ = append_Expressions($1,single_Expressions($2)); }
+    | semi_expression_list error ';'
+    ;
+
+    case_list
+    : case
+    { $$ = single_Cases($1); }
+    | case_list case
+    { SET_NODELOC(@2);
+    $$ = append_Cases($1,single_Cases($2)); }
+    ;
+
+    case
+    : OBJECTID ':' TYPEID DARROW expression ';'
+    { SET_NODELOC(@5);
+    $$ = branch($1,$3,$5); }
+    ;
+
+    opt_init_expr
+    : /* no_expr */
+    { $$ = no_expr(); }
+    | ASSIGN expression
+    { SET_NODELOC(@2);
+    $$ = $2; }
+
+    let_expr
+    : IN expression %prec LET
+    { SET_NODELOC(@2);
+    $$ = $2; }
+    | init_let_expr
+    { SET_NODELOC(@1);
+    $$ = $1; }
+    ;
+
+    init_let_expr
+    : ',' OBJECTID ':' TYPEID opt_init_expr IN expression %prec LET
+    { SET_NODELOC(@6);
+    $$ = let($2,$4,$5,$7); }
+    | ',' OBJECTID ':' TYPEID opt_init_expr init_let_expr
+    { SET_NODELOC(@6);
+    $$ = let($2,$4,$5,$6); }
+    | error ',' OBJECTID ':' TYPEID opt_init_expr IN expression %prec LET
+    { SET_NODELOC(@7);
+    $$ = let($3,$5,$6,$8); }
+    | error ',' OBJECTID ':' TYPEID opt_init_expr init_let_expr
+    { SET_NODELOC(@7);
+    $$ = let($3,$5,$6,$7); }
+    ;
+
     /* end of grammar */
     %%
     

@@ -1,0 +1,28 @@
+The first thing is you need a lexer (through 'yylex()') which return a enum kind of thing.
+This enum could be defined by directive '%token' I think...
+yylex() also set yylloc (which, I think, is defined as cool_yylloc)
+```
+    #define SET_NODELOC(Current)  \
+    node_lineno = Current;
+```
+SET_NODELOC macro is used for???
+
+I also like to think about aps or something
+
+How to do error recovery in Bison
+ERROR Recovery (by GNU)
+1. """
+You can define how to recover from a syntax error by writing rules to recognize the special token error. 
+This is a terminal symbol that is always defined (you need not declare it) and reserved for error handling. 
+The Bison parser generates an error token whenever a syntax error happens; if you have provided a rule to
+recognize this token in the current context, the parse can continue. 
+"""
+So "a syntax error" in SLR(1) is the entry in goto table is invalid, so how does the parser continue.
+One possible approach is when it sees the next required token, it end (or produce) the terminal symbol
+errror.
+
+2. error strategy
+e.g. stmt: error ';' \* skip the whole statement *\
+e.g. primary: '(' error ')' \* read close-delimiter to prevent further error *\
+
+Now we will start to solve the problem in homework
