@@ -323,6 +323,29 @@ bool ClassTable::less_equal(Symbol ltype, Symbol htype)
     return false;
 }
 
+Formals ClassTable::sym_to_formals(Symbol sym, Symbol class_name)
+{
+    while (true) {
+        auto cls = sym_to_class(class_name);
+        auto fts = cls->get_features();
+        for (int i = fts->first(); fts->more(i); i = fts->next(i)) {
+            if (method_class *m = dynamic_cast<method_class *>(fts->nth(i))) {
+                if (m->get_name() == sym) {
+                    return m->get_formals();
+                }
+            }
+        }
+
+        if (class_name == Object) {
+            break;
+        }
+        class_name = ig[class_name];
+    }
+
+    cerr << "Compiler bug: can't reach here" << endl;
+    exit(1);
+}
+
 
 /*   This is the entry point to the semantic checker.
 

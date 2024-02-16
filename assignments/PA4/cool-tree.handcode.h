@@ -63,6 +63,7 @@ virtual Symbol get_filename() = 0;      \
 virtual void dump_with_types(ostream&,int) = 0; \
 virtual Symbol get_name() = 0;          \
 virtual Symbol get_parent() = 0;        \
+virtual Features get_features() = 0;    \
 virtual void semant(ClassTableP ct) = 0; \
 virtual void add_attr(SymTab *symtab, ClassTableP ct) = 0;
 
@@ -73,6 +74,7 @@ Symbol get_filename() { return filename; }             \
 void dump_with_types(ostream&,int);                    \
 Symbol get_name() { return name; }                     \
 Symbol get_parent() { return parent; }                 \
+Features get_features() { return features; }           \
 void semant(ClassTableP ct);                           \
 void add_attr(SymTab *st, ClassTableP ct);
 
@@ -84,6 +86,7 @@ virtual void semant(SymTab *st, ClassTableP ct, Class_ cur) = 0;
 
 #define Feature_SHARED_EXTRAS                                       \
 void dump_with_types(ostream&,int);                                 \
+Symbol get_name() { return name; };                                 \
 void semant(SymTab *st, ClassTableP ct, Class_ cur);
 
 
@@ -124,7 +127,9 @@ void dump_with_types(ostream&,int);        \
 void semant(SymTab *st, ClassTableP ct, Class_ cur);
 
 #define attr_EXTRAS                        \
-Symbol get_name() { return name; };        \
 Symbol get_type_decl() { return type_decl; };
+
+#define method_EXTRAS                      \
+Formals get_formals() { return formals; }
 
 #endif

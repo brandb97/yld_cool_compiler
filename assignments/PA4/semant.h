@@ -60,6 +60,7 @@ public:
   int errors() { return semant_errors; }
   Class_ sym_to_class(Symbol sym);
   bool less_equal(Symbol ltype, Symbol htype);
+  Formals sym_to_formals(Symbol sym, Symbol class_name);
   ostream& semant_error();
   ostream& semant_error(Class_ c);
   ostream& semant_error(Symbol filename, tree_node *t);
