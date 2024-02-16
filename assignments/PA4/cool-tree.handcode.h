@@ -8,6 +8,7 @@
 #include "tree.h"
 #include "cool.h"
 #include "stringtab.h"
+#include "symtab.h"
 #define yylineno curr_lineno;
 extern int yylineno;
 
@@ -44,10 +45,13 @@ typedef Expressions_class *Expressions;
 typedef list_node<Case> Cases_class;
 typedef Cases_class *Cases;
 
+typedef SymbolTable<Symbol, Entry> SymTab;
+class ClassTable;
+typedef ClassTable *ClassTableP;
+
 #define Program_EXTRAS                          \
 virtual void semant() = 0;			\
 virtual void dump_with_types(ostream&, int) = 0; 
-
 
 
 #define program_EXTRAS                          \
@@ -56,31 +60,46 @@ void dump_with_types(ostream&, int);
 
 #define Class__EXTRAS                   \
 virtual Symbol get_filename() = 0;      \
-virtual void dump_with_types(ostream&,int) = 0; 
+virtual void dump_with_types(ostream&,int) = 0; \
+virtual Symbol get_name() = 0;          \
+virtual Symbol get_parent() = 0;        \
+virtual void semant(ClassTableP ct) = 0; \
+virtual void add_attr(SymTab *symtab, ClassTableP ct) = 0;
+
 
 
 #define class__EXTRAS                                 \
 Symbol get_filename() { return filename; }             \
-void dump_with_types(ostream&,int);                    
+void dump_with_types(ostream&,int);                    \
+Symbol get_name() { return name; }                     \
+Symbol get_parent() { return parent; }                 \
+void semant(ClassTableP ct);                           \
+void add_attr(SymTab *st, ClassTableP ct);
 
 
 #define Feature_EXTRAS                                        \
-virtual void dump_with_types(ostream&,int) = 0; 
+virtual void dump_with_types(ostream&,int) = 0;               \
+virtual void semant(SymTab *st, ClassTableP ct, Class_ cur) = 0;
 
 
 #define Feature_SHARED_EXTRAS                                       \
-void dump_with_types(ostream&,int);    
+void dump_with_types(ostream&,int);                                 \
+void semant(SymTab *st, ClassTableP ct, Class_ cur);
 
 
 
 
 
 #define Formal_EXTRAS                              \
-virtual void dump_with_types(ostream&,int) = 0;
+virtual void dump_with_types(ostream&,int) = 0;    \
+virtual Symbol get_name() = 0;                     \
+virtual Symbol get_type_decl() = 0;
 
 
 #define formal_EXTRAS                           \
-void dump_with_types(ostream&,int);
+void dump_with_types(ostream&,int);             \
+Symbol get_name() { return name; };             \
+Symbol get_type_decl() { return type_decl; };
 
 
 #define Case_EXTRAS                             \
@@ -97,9 +116,15 @@ Symbol get_type() { return type; }           \
 Expression set_type(Symbol s) { type = s; return this; } \
 virtual void dump_with_types(ostream&,int) = 0;  \
 void dump_type(ostream&, int);               \
-Expression_class() { type = (Symbol) NULL; }
+Expression_class() { type = (Symbol) NULL; } \
+virtual void semant(SymTab *st, ClassTableP ct, Class_ cur) = 0;
 
 #define Expression_SHARED_EXTRAS           \
-void dump_with_types(ostream&,int); 
+void dump_with_types(ostream&,int);        \
+void semant(SymTab *st, ClassTableP ct, Class_ cur);
+
+#define attr_EXTRAS                        \
+Symbol get_name() { return name; };        \
+Symbol get_type_decl() { return type_decl; };
 
 #endif

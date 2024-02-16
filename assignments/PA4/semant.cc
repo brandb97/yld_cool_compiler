@@ -6,7 +6,6 @@
 #include "semant.h"
 #include "utilities.h"
 
-
 extern int semant_debug;
 extern char *curr_filename;
 
@@ -83,10 +82,68 @@ static void initialize_constants(void)
 
 
 
-ClassTable::ClassTable(Classes classes) : semant_errors(0) , error_stream(cerr) {
+ClassTable::ClassTable(Classes classes) : 
+    semant_errors(0) , error_stream(cerr), 
+    ig(2 * classes->len(), hasher, eqOp), 
+    basic_classes(nil_Classes()),
+    sc(2 * classes->len(), hasher, eqOp) {
+    install_basic_classes();
 
-    /* Fill this in */
+    // build inheritance graph
+    for (int i = classes->first(); classes->more(i); i = classes->next(i)) {
+        auto class_ = classes->nth(i);
+        ig[class_->get_name()] = class_->get_parent();
+        sc[class_->get_name()] = class_;
 
+        if (semant_debug) {
+            error_stream << "insert ig " << class_->get_name() << "->" << class_->get_parent() << endl;
+        }
+    }
+
+    // acyclic check
+    if (!acyclic_check()) {
+        error_stream << "acyclic check failed\n";
+        exit(1);
+    } else if (semant_debug) {
+        error_stream << "acyclic check passed\n"; // should I use error_stream?
+    }
+}
+
+bool ClassTable::acyclic_check() {
+    auto sym_set = SymbolSet(ig.bucket_count(), hasher, eqOp);
+    sym_set.insert(Object); // add Object so that dfs can stop
+
+    // for (auto sym_pair : ig) { // old compiler didn't understand this
+    for (auto sym_itr = ig.begin(); sym_itr != ig.end(); sym_itr++) {
+        auto sym_pair = *sym_itr;
+        auto sym_path = SymbolSet(ig.bucket_count(), hasher, eqOp);
+        auto child = sym_pair.first;
+        auto parent = sym_pair.second;
+
+        while (sym_set.find(child) == sym_set.end()) {
+            if (semant_debug) {
+                error_stream << "reach " << child << endl;
+            }
+
+            sym_set.insert(child);
+            sym_path.insert(child);
+            child = parent;
+            if (ig.find(child) != ig.end()) {
+                parent = ig[child];
+            } else {
+                error_stream << "reach undefined class " << parent << endl;
+                return false;
+            }
+        }
+
+        if (sym_path.find(child) != sym_path.end()) {
+            if (semant_debug) {
+                error_stream << "reach " << child << " again!\n";
+            }
+            return false;
+        }
+    }
+    return true;
 }
 
 void ClassTable::install_basic_classes() {
@@ -103,6 +160,8 @@ void ClassTable::install_basic_classes() {
     // stored in local variables.  You will want to do something
     // with those variables at the end of this method to make this
     // code meaningful.
+
+    // IMPORTANT: only add ig support
 
     // 
     // The Object class has no parent class. Its methods are
@@ -122,6 +181,8 @@ void ClassTable::install_basic_classes() {
 					       single_Features(method(type_name, nil_Formals(), Str, no_expr()))),
 			       single_Features(method(copy, nil_Formals(), SELF_TYPE, no_expr()))),
 	       filename);
+    ig[Object] = No_class;
+    basic_classes = single_Classes(Object_class);
 
     // 
     // The IO class inherits from Object. Its methods are
@@ -142,7 +203,9 @@ void ClassTable::install_basic_classes() {
 										      SELF_TYPE, no_expr()))),
 					       single_Features(method(in_string, nil_Formals(), Str, no_expr()))),
 			       single_Features(method(in_int, nil_Formals(), Int, no_expr()))),
-	       filename);  
+	       filename);
+    basic_classes = append_Classes(basic_classes, single_Classes(IO_class));
+    ig[IO] = Object;
 
     //
     // The Int class has no methods and only a single attribute, the
@@ -153,12 +216,16 @@ void ClassTable::install_basic_classes() {
 	       Object,
 	       single_Features(attr(val, prim_slot, no_expr())),
 	       filename);
+    basic_classes = append_Classes(basic_classes, single_Classes(Int_class));
+    ig[Int] = Object;
 
     //
     // Bool also has only the "val" slot.
     //
     Class_ Bool_class =
 	class_(Bool, Object, single_Features(attr(val, prim_slot, no_expr())),filename);
+    basic_classes = append_Classes(basic_classes, single_Classes(Bool_class));
+    ig[Bool] = Object;
 
     //
     // The class Str has a number of slots and operations:
@@ -188,6 +255,8 @@ void ClassTable::install_basic_classes() {
 						      Str, 
 						      no_expr()))),
 	       filename);
+    basic_classes = append_Classes(basic_classes, single_Classes(Str_class));           
+    ig[Str] = Object;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -222,6 +291,37 @@ ostream& ClassTable::semant_error()
     return error_stream;
 } 
 
+Class_ ClassTable::sym_to_class(Symbol sym)
+{
+    if (sc.find(sym) == sc.end()) {
+        for (int i = basic_classes->first(); basic_classes->more(i); i = basic_classes->next(i)) {
+            auto cls = basic_classes->nth(i);
+            if (cls->get_name()->equal_string(sym->get_string(), sym->get_len())) {
+                return cls;
+            }
+        }
+    } // must be basic_classes
+
+    return sc[sym];
+}
+
+bool ClassTable::less_equal(Symbol ltype, Symbol htype)
+{
+    if (ltype == Object) {
+        return true;
+    }
+
+    while (htype != Object) {
+        if (ltype == htype) {
+            return true;
+        }
+
+        /* htype = get_parent(htype) */
+        htype = ig[htype];
+    }
+
+    return false;
+}
 
 
 /*   This is the entry point to the semantic checker.
@@ -245,11 +345,82 @@ void program_class::semant()
     ClassTable *classtable = new ClassTable(classes);
 
     /* some semantic analysis code may go here */
+    for (int i = classes->first(); classes->more(i); i = classes->next(i)) {
+        auto class_ = classes->nth(i);
+        class_->semant(classtable);
+    }
 
     if (classtable->errors()) {
-	cerr << "Compilation halted due to static semantic errors." << endl;
-	exit(1);
+	    cerr << "Compilation halted due to static semantic errors." << endl;
+	    exit(1);
     }
 }
 
+void class__class::semant(ClassTableP ct)
+{
+    /* use ct->semant_error(filename, t) to output error */
+    /* use attrs to build symbol table */
+    SymTab *st = new SymTab();
+    /* build symbol table for parent first */
+    st->enterscope();
+    add_attr(st, ct);
+
+    /* semantic checks */
+    for (int i = features->first(); features->more(i); i = features->next(i)) {
+        features->nth(i)->semant(st, ct, this);
+    }
+    st->exitscope();
+}
+
+void class__class::add_attr(SymTab *st, ClassTableP ct)
+{
+    // Optimize this code
+    if (name->equal_string(Object->get_string(), Object->get_len())) {
+        return;
+    }
+
+    ct->sym_to_class(get_parent())->add_attr(st, ct);
+    for (int i = features->first(); features->more(i); i = features->next(i)) {
+        if (attr_class *at = dynamic_cast<attr_class *>(features->nth(i))) {
+            /* check repeat value */
+            if (st->probe(at->get_name()) != NULL) {
+                /* repeated attribute error */
+                ct->semant_error(this) << "repeated attr " << at->get_name() << endl;
+                continue;
+            }
+
+            st->addid(at->get_name(), at->get_type_decl());
+        }
+    }
+}
+
+void attr_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    init->semant(st, ct, cur);
+    if (!ct->less_equal(type_decl, init->get_type())) {
+        ct->semant_error(cur->get_filename(), this) 
+            << "can't assign " << init->get_type() << " to" << type_decl << endl;
+    }
+}
+
+void method_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    st->enterscope();
+    /* add formals to symbol table */
+    for (int i = formals->first(); formals->more(i); i = formals->next(i)) {
+        auto form = formals->nth(i);
+        st->addid(form->get_name(), form->get_type_decl());
+    }
+
+    /* expr check */
+    expr->semant(st, ct, cur);
+
+    /* return type check */
+    if (!ct->less_equal(return_type, expr->get_type())) {
+        ct->semant_error(cur->get_filename(), this) 
+            << "can't return " << expr->get_type() 
+            << " to a fuction which returns " << return_type << endl;
+    }
+    st->exitscope();
+}
 

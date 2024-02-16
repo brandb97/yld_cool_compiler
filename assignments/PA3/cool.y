@@ -174,9 +174,14 @@
     : class			/* single class */
     { $$ = single_Classes($1);
     parse_results = $$; }
+    | error class			/* single class */
+    { $$ = single_Classes($2);
+    parse_results = $$; }
     | class_list class	/* several classes */
     { $$ = append_Classes($1,single_Classes($2)); 
     parse_results = $$; }
+    | class_list error ';' 
+    { $$ = $1; }
     ;
 
     /* If no parent is specified, the class inherits from the Object class. */
@@ -185,7 +190,6 @@
     stringtable.add_string(curr_filename)); }
     | CLASS TYPEID INHERITS TYPEID '{' feature_list '}' ';'
     { $$ = class_($2,$4,$6,stringtable.add_string(curr_filename)); }
-    | error ';'
     ;
     
     /* Feature list may be empty, but no empty features in list. e.g.
@@ -198,6 +202,8 @@
     | feature_list feature
     { SET_NODELOC(@2);
     $$ = append_Features($1,single_Features($2)); }
+    | feature_list error ';'
+    { $$ = $1; }
     ;
 
     feature
@@ -207,7 +213,6 @@
     | OBJECTID ':' TYPEID opt_init_expr ';'
     { SET_NODELOC(@4);
     $$ = attr($1,$3,$4); }
-    | error ';'
     ;
 
     formal_list
@@ -360,6 +365,9 @@
     : IN expression %prec LET
     { SET_NODELOC(@2);
     $$ = $2; }
+    | error IN expression %prec LET
+    { SET_NODELOC(@3);
+    $$ = $3; }
     | init_let_expr
     { SET_NODELOC(@1);
     $$ = $1; }
