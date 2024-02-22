@@ -452,6 +452,7 @@ public:
 #endif
 };
 
+bool op_semant(Expression e1, Expression e2, SymTab *st, ClassTableP ct, Class_ cur, tree_node *n);
 
 // define constructor - plus
 class plus_class : public Expression_class {

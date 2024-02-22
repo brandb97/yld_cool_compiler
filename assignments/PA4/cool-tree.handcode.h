@@ -108,11 +108,18 @@ void set_type_decl(Symbol td) { type_decl = td; };
 
 
 #define Case_EXTRAS                             \
-virtual void dump_with_types(ostream& ,int) = 0;
+virtual void dump_with_types(ostream& ,int) = 0; \
+virtual void semant(SymTab *st, ClassTableP ct, Class_ cur) = 0; \
+virtual Symbol get_return_type() = 0;           \
+virtual Symbol get_type_decl() = 0;
 
 
 #define branch_EXTRAS                                   \
-void dump_with_types(ostream& ,int);
+void dump_with_types(ostream& ,int);                    \
+void semant(SymTab *st, ClassTableP ct, Class_ cur);    \
+Symbol get_return_type() { return expr->get_type(); };  \
+Symbol get_type_decl() { return type_decl; };
+
 
 
 #define Expression_EXTRAS                    \

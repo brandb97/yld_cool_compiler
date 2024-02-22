@@ -62,8 +62,9 @@ public:
   ClassTable(Classes);
   int errors() { return semant_errors; }
   Class_ sym_to_class(Symbol sym);
+  Symbols sym_to_types(Symbol mth_name, Symbol class_name);
   bool less_equal(Symbol ltype, Symbol rtype, Symbol cur_type);
-  Symbols sym_to_types(Symbol sym, Symbol class_name);
+  Symbol lub(Symbol t1, Symbol t2);  
   ostream& semant_error();
   ostream& semant_error(Class_ c);
   ostream& semant_error(Symbol filename, tree_node *t);
