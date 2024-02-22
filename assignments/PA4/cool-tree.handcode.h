@@ -96,13 +96,15 @@ void semant(SymTab *st, ClassTableP ct, Class_ cur);
 #define Formal_EXTRAS                              \
 virtual void dump_with_types(ostream&,int) = 0;    \
 virtual Symbol get_name() = 0;                     \
-virtual Symbol get_type_decl() = 0;
+virtual Symbol get_type_decl() = 0;                \
+virtual void set_type_decl(Symbol td) = 0;
 
 
 #define formal_EXTRAS                           \
 void dump_with_types(ostream&,int);             \
 Symbol get_name() { return name; };             \
-Symbol get_type_decl() { return type_decl; };
+Symbol get_type_decl() { return type_decl; };   \
+void set_type_decl(Symbol td) { type_decl = td; };
 
 
 #define Case_EXTRAS                             \
@@ -130,6 +132,6 @@ void semant(SymTab *st, ClassTableP ct, Class_ cur);
 Symbol get_type_decl() { return type_decl; };
 
 #define method_EXTRAS                      \
-Formals get_formals() { return formals; }
+Symbols to_types();
 
 #endif

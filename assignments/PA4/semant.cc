@@ -305,25 +305,32 @@ Class_ ClassTable::sym_to_class(Symbol sym)
     return sc[sym];
 }
 
-bool ClassTable::less_equal(Symbol ltype, Symbol htype)
+bool ClassTable::less_equal(Symbol ltype, Symbol rtype, Symbol cur_type)
 {
-    if (ltype == Object) {
+    if (rtype == SELF_TYPE) {
+        return ltype == SELF_TYPE;
+    } else if (ltype == SELF_TYPE) {
+        ltype = cur_type;
+    }
+
+    /* both ltype and rtype are not SELF_TYPE now */
+    if (rtype == Object) {
         return true;
     }
 
-    while (htype != Object) {
-        if (ltype == htype) {
+    while (ltype != Object) {
+        if (ltype == rtype) {
             return true;
         }
 
         /* htype = get_parent(htype) */
-        htype = ig[htype];
+        ltype = ig[ltype];
     }
 
     return false;
 }
 
-Formals ClassTable::sym_to_formals(Symbol sym, Symbol class_name)
+Symbols ClassTable::sym_to_types(Symbol sym, Symbol class_name)
 {
     while (true) {
         auto cls = sym_to_class(class_name);
@@ -331,7 +338,7 @@ Formals ClassTable::sym_to_formals(Symbol sym, Symbol class_name)
         for (int i = fts->first(); fts->more(i); i = fts->next(i)) {
             if (method_class *m = dynamic_cast<method_class *>(fts->nth(i))) {
                 if (m->get_name() == sym) {
-                    return m->get_formals();
+                    return m->to_types();
                 }
             }
         }
@@ -381,11 +388,20 @@ void program_class::semant()
 
 void class__class::semant(ClassTableP ct)
 {
+    if (name == SELF_TYPE) {
+        ct->semant_error(this) << "class name can't be SELF_TYPE" << endl;
+        return;
+    } else if (parent == SELF_TYPE) {
+        ct->semant_error(this) << "class can't inherits SELF_TYPE" << endl;
+        return;
+    }
+
     /* use ct->semant_error(filename, t) to output error */
     /* use attrs to build symbol table */
     SymTab *st = new SymTab();
     /* build symbol table for parent first */
     st->enterscope();
+    st->addid(self, SELF_TYPE); /* O[SELF_TYPE/self] */
     add_attr(st, ct);
 
     /* semantic checks */
@@ -420,7 +436,7 @@ void class__class::add_attr(SymTab *st, ClassTableP ct)
 void attr_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
     init->semant(st, ct, cur);
-    if (!ct->less_equal(type_decl, init->get_type())) {
+    if (!ct->less_equal(init->get_type(), type_decl, cur->get_name())) {
         ct->semant_error(cur->get_filename(), this) 
             << "can't assign " << init->get_type() << " to" << type_decl << endl;
     }
@@ -432,14 +448,22 @@ void method_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     /* add formals to symbol table */
     for (int i = formals->first(); formals->more(i); i = formals->next(i)) {
         auto form = formals->nth(i);
-        st->addid(form->get_name(), form->get_type_decl());
+        auto td = form->get_type_decl();
+        if (td == SELF_TYPE) {
+            ct->semant_error(cur->get_filename(), this) 
+                << form << "argument can't be SELF_TYPE" << endl;
+            form->set_type_decl(cur->get_name());
+            st->addid(form->get_name(), cur->get_name());
+        } else {
+            st->addid(form->get_name(), td);
+        }
     }
 
     /* expr check */
     expr->semant(st, ct, cur);
 
     /* return type check */
-    if (!ct->less_equal(return_type, expr->get_type())) {
+    if (!ct->less_equal(expr->get_type(), return_type, cur->get_name())) {
         ct->semant_error(cur->get_filename(), this) 
             << "can't return " << expr->get_type() 
             << " to a fuction which returns " << return_type << endl;
@@ -447,3 +471,172 @@ void method_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     st->exitscope();
 }
 
+Symbols method_class::to_types()
+{
+    auto syms = nil_Symbols();
+    for (int i = formals->first(); formals->more(i); i = formals->next(i)) {
+        auto form = formals->nth(i);
+        syms = append_Symbols(syms, single_Symbols(form->get_type_decl()));
+    }
+
+    syms = append_Symbols(syms, single_Symbols(return_type));
+    return syms;
+}
+
+Symbols nil_Symbols()
+{
+   return new nil_node<Symbol>();
+}
+
+
+Symbols single_Symbols(Symbol e)
+{
+   return new single_list_node<Symbol>(e);
+}
+
+Symbols append_Symbols(Symbols p1, Symbols p2)
+{
+   return new append_node<Symbol>(p1, p2);
+}
+
+void assign_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    expr->semant(st, ct, cur);
+
+    auto ltype = st->lookup(name);
+    if (!ct->less_equal(expr->get_type(), ltype, cur->get_name())) {
+        ct->semant_error(cur->get_filename(), this) 
+            << "can't assign " << expr->get_type() 
+            << " to " << name << " which has type " << ltype << endl;
+    }
+}
+
+void static_dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void cond_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void loop_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void typcase_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void block_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void let_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void plus_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void sub_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void mul_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void divide_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void sub_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void neg_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void lt_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void eq_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void leq_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void comp_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void sub_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void int_const_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void bool_const_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void string_const_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void new__class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void isvoid_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void no_expr_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void string_const_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}
+
+void object_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
+{
+    
+}

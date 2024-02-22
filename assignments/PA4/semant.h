@@ -44,6 +44,9 @@ inline size_t hasher(const Symbol &sym)
 typedef unordered_map<Symbol, Symbol, decltype(hasher)*, decltype(eqOp)*> InheritGraph;
 typedef unordered_map<Symbol, Class_, decltype(hasher)*, decltype(eqOp)*> SymToClass;
 typedef unordered_set<Symbol, decltype(hasher)*, decltype(eqOp)*> SymbolSet;
+typedef list_node<Symbol> Symbols_class;
+typedef Symbols_class *Symbols;
+
 
 class ClassTable {
 private:
@@ -59,8 +62,8 @@ public:
   ClassTable(Classes);
   int errors() { return semant_errors; }
   Class_ sym_to_class(Symbol sym);
-  bool less_equal(Symbol ltype, Symbol htype);
-  Formals sym_to_formals(Symbol sym, Symbol class_name);
+  bool less_equal(Symbol ltype, Symbol rtype, Symbol cur_type);
+  Symbols sym_to_types(Symbol sym, Symbol class_name);
   ostream& semant_error();
   ostream& semant_error(Class_ c);
   ostream& semant_error(Symbol filename, tree_node *t);
