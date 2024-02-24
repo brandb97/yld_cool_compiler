@@ -44,9 +44,6 @@ inline size_t hasher(const Symbol &sym)
 typedef unordered_map<Symbol, Symbol, decltype(hasher)*, decltype(eqOp)*> InheritGraph;
 typedef unordered_map<Symbol, Class_, decltype(hasher)*, decltype(eqOp)*> SymToClass;
 typedef unordered_set<Symbol, decltype(hasher)*, decltype(eqOp)*> SymbolSet;
-typedef list_node<Symbol> Symbols_class;
-typedef Symbols_class *Symbols;
-
 
 class ClassTable {
 private:

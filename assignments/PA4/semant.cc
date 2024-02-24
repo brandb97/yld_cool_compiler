@@ -355,7 +355,20 @@ Symbols ClassTable::sym_to_types(Symbol mth_name, Symbol class_name)
 
 Symbol ClassTable::lub(Symbol t1, Symbol t2)
 {
-    // need to implement
+    // build t1 path
+    SymbolSet t1_path(ig.bucket_count(), hasher, eqOp);
+    t1_path.insert(Object);
+    while (t1 != Object) { // buggy code
+        t1_path.insert(t1);
+        t1 = ig[t1];
+    }
+
+    while (t2 != Object) { // buggy code
+        if (t1_path.find(t2) != t1_path.end()) {
+            return t2;
+        }
+        t2 = ig[t2];
+    }
     return Object;
 }
 
@@ -631,9 +644,15 @@ void typcase_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
     expr->semant(st, ct, cur);
 
-    //
-    // check all branch should have distinct types
-    //
+    /* check all branch should have distinct types */
+    SymbolSet type_set(cases->len(), hasher, eqOp);
+    for (int i = cases->first(); cases->more(i); i = cases->next(i)) {
+        auto t = cases->nth(i)->get_type_decl();
+        if (type_set.find(t) != type_set.end()) {
+            ct->semant_error(cur->get_filename(), this)
+                << "repeated type " << t << " in case branches" << endl;
+        }
+    }
     
     for (int i = cases->first(); cases->more(i); i = cases->next(i)) {
         auto cas = cases->nth(i);
@@ -743,27 +762,59 @@ void divide_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 
 void neg_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
-    
+    e1->semant(st, ct, cur);
+    if (e1->get_type() != Bool) {
+        ct->semant_error(cur->get_filename(), this)
+            << "neg can only operate on Bool expression" << endl;
+        type = Object;
+    } else {
+        type = Bool;
+    }
 }
 
 void lt_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
-    
+    if (op_semant(e1, e2, st, ct, cur, this)) {
+        type = Bool;
+    } else {
+        type = Object;
+    }
 }
 
 void eq_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
-    
+    if ((e1->get_type() == Int && e1->get_type() == Int)
+        || (e1->get_type() == Bool && e1->get_type() == Bool)
+        || (e1->get_type() == Str && e1->get_type() == Str)) {
+        ct->semant_error(st, ct, cur)
+            << "eq can only operate on " 
+            << "{Int, Int}, {Bool, Bool} or {Str, Str}" << endl;
+        type = Object;
+    } else {
+        type = Int;
+    }
 }
+
 
 void leq_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
-    
+    if (op_semant(e1, e2, st, ct, cur, this)) {
+        type = Bool;
+    } else {
+        type = Object;
+    }    
 }
 
 void comp_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
-    
+    e1->semant(st, ct, cur);
+    if (e1->get_type() != Int) {
+        ct->semant_error(cur->get_filename(), this) 
+            << "complement can only operate on Int expression" << endl;
+        type = Object;
+    } else {
+        type = Int;
+    }
 }
 
 void int_const_class::semant(SymTab *st, ClassTableP ct, Class_ cur)

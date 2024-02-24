@@ -12,6 +12,8 @@
 #include "tree.h"
 #include "cool-tree.handcode.h"
 
+typedef list_node<Symbol> Symbols_class;
+typedef Symbols_class *Symbols;
 
 // define the class for phylum
 // define simple phylum - Program
