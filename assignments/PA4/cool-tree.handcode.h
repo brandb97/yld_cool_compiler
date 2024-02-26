@@ -5,12 +5,15 @@
 #define COOL_TREE_HANDCODE_H
 
 #include <iostream>
+#include <vector>
 #include "tree.h"
 #include "cool.h"
 #include "stringtab.h"
 #include "symtab.h"
 #define yylineno curr_lineno;
 extern int yylineno;
+
+using std::vector;
 
 inline Boolean copy_Boolean(Boolean b) {return b; }
 inline void assert_Boolean(Boolean) {}
@@ -48,6 +51,9 @@ typedef Cases_class *Cases;
 typedef SymbolTable<Symbol, Entry> SymTab;
 class ClassTable;
 typedef ClassTable *ClassTableP;
+
+typedef vector<Symbol> Symbols;
+
 
 #define Program_EXTRAS                          \
 virtual void semant() = 0;			\

@@ -52,8 +52,8 @@ private:
   bool acyclic_check();
   ostream& error_stream;
   InheritGraph ig;
+  Classes basic_classes;  
   SymToClass sc;
-  Classes basic_classes;
 
 public:
   ClassTable(Classes);

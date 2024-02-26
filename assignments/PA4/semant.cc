@@ -396,6 +396,9 @@ void program_class::semant()
     /* some semantic analysis code may go here */
     for (int i = classes->first(); classes->more(i); i = classes->next(i)) {
         auto class_ = classes->nth(i);
+        if (semant_debug) {
+            cerr << "semant check class" << class_->get_name() << endl;
+        }
         class_->semant(classtable);
     }
 
@@ -426,6 +429,10 @@ void class__class::semant(ClassTableP ct)
     /* semantic checks */
     for (int i = features->first(); features->more(i); i = features->next(i)) {
         features->nth(i)->semant(st, ct, this);
+        if (semant_debug) {
+            ct->semant_error(this)
+                << "finish semnat check feature " << i << endl;
+        }
     }
     st->exitscope();
 }
@@ -454,8 +461,13 @@ void class__class::add_attr(SymTab *st, ClassTableP ct)
 
 void attr_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
+    if (semant_debug) {
+        ct->semant_error(cur->get_filename(), this)
+            << "semnat check attr " << name << ":" << type_decl << endl;
+    }
+
     init->semant(st, ct, cur);
-    if (!ct->less_equal(init->get_type(), type_decl, cur->get_name())) {
+    if (init->get_type() && !ct->less_equal(init->get_type(), type_decl, cur->get_name())) {
         ct->semant_error(cur->get_filename(), this) 
             << "can't assign " << init->get_type() << " to" << type_decl << endl;
     }
@@ -463,6 +475,11 @@ void attr_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 
 void method_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
+    if (semant_debug) {
+        ct->semant_error(cur->get_filename(), this)
+            << "semnat check feature " << name << endl;
+    }
+
     st->enterscope();
     /* add formals to symbol table */
     for (int i = formals->first(); formals->more(i); i = formals->next(i)) {
@@ -492,31 +509,16 @@ void method_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 
 Symbols method_class::to_types()
 {
-    auto syms = nil_Symbols();
+    auto syms = vector<Symbol>();
     for (int i = formals->first(); formals->more(i); i = formals->next(i)) {
         auto form = formals->nth(i);
-        syms = append_Symbols(syms, single_Symbols(form->get_type_decl()));
+        syms.push_back(form->get_type_decl());
     }
 
-    syms = append_Symbols(syms, single_Symbols(return_type));
+    syms.push_back(return_type);
     return syms;
 }
 
-Symbols nil_Symbols()
-{
-   return new nil_node<Symbol>();
-}
-
-
-Symbols single_Symbols(Symbol e)
-{
-   return new single_list_node<Symbol>(e);
-}
-
-Symbols append_Symbols(Symbols p1, Symbols p2)
-{
-   return new append_node<Symbol>(p1, p2);
-}
 
 void assign_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
@@ -547,17 +549,10 @@ void static_dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     }
     auto types = ct->sym_to_types(name, type_name);
 
-    int fst = types->first();
-    if (!ct->less_equal(expr->get_type(), types->nth(fst), cur->get_name())) {
-        ct->semant_error(cur->get_filename(), this) 
-            << "can't assign " << expr->get_type() 
-            << " to " << name << " which has type " << types->nth(fst) << endl;
-    }
 
-    int t_idx = types->next(fst);
-    for (int i = actual->first(); actual->more(i); i = actual->next(i), t_idx = types->next(t_idx)) {
+    for (int i = actual->first(), t_idx = 0; actual->more(i); i = actual->next(i), t_idx++) {
         auto expr_type = actual->nth(i)->get_type();
-        auto type_decl = types->nth(t_idx);
+        auto type_decl = types[t_idx];
         if (!ct->less_equal(expr_type, type_decl, cur->get_name())) {
             ct->semant_error(cur->get_filename(), this) 
                 << "can't assign " << expr->get_type() 
@@ -565,7 +560,7 @@ void static_dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
         }
     }
 
-    auto return_type = types->nth(t_idx);
+    auto return_type = types.back();
     if (return_type == SELF_TYPE) {
         type = expr->get_type();
     } else {
@@ -587,17 +582,10 @@ void dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
         types = ct->sym_to_types(name, expr->get_type());
     }
 
-    int fst = types->first();
-    if (!ct->less_equal(expr->get_type(), types->nth(fst), cur->get_name())) {
-        ct->semant_error(cur->get_filename(), this) 
-            << "can't assign " << expr->get_type() 
-            << " to " << name << " which has type " << types->nth(fst) << endl;
-    }
 
-    int t_idx = types->next(fst);
-    for (int i = actual->first(); actual->more(i); i = actual->next(i), t_idx = types->next(t_idx)) {
+    for (int i = actual->first(), t_idx = 0; actual->more(i); i = actual->next(i), t_idx++) {
         auto expr_type = actual->nth(i)->get_type();
-        auto type_decl = types->nth(t_idx);
+        auto type_decl = types[t_idx];
         if (!ct->less_equal(expr_type, type_decl, cur->get_name())) {
             ct->semant_error(cur->get_filename(), this) 
                 << "can't assign " << expr->get_type() 
@@ -605,7 +593,7 @@ void dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
         }
     }
 
-    auto return_type = types->nth(t_idx);
+    auto return_type = types.back();
     if (return_type == SELF_TYPE) {
         type = expr->get_type();
     } else {
@@ -681,11 +669,11 @@ void block_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     while (true) {
         auto e = body->nth(i);
         e->semant(st, ct, cur);
+        i = body->next(i);
         if (!body->more(i)) {
             type = e->get_type();
             break;
         }
-        i = body->next(i);
     }
 }
 
@@ -786,7 +774,7 @@ void eq_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     if ((e1->get_type() == Int && e1->get_type() == Int)
         || (e1->get_type() == Bool && e1->get_type() == Bool)
         || (e1->get_type() == Str && e1->get_type() == Str)) {
-        ct->semant_error(st, ct, cur)
+        ct->semant_error(cur->get_filename(), this)
             << "eq can only operate on " 
             << "{Int, Int}, {Bool, Bool} or {Str, Str}" << endl;
         type = Object;
@@ -850,5 +838,5 @@ void no_expr_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 
 void object_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
-   type = Object;
+   type = st->lookup(name);
 }
