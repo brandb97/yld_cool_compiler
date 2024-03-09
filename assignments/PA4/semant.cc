@@ -92,18 +92,12 @@ ClassTable::ClassTable(Classes classes) :
         auto class_ = classes->nth(i);
         ig[class_->get_name()] = class_->get_parent();
         sc[class_->get_name()] = class_;
-
-        if (semant_debug) {
-            error_stream << "insert ig " << class_->get_name() << "->" << class_->get_parent() << endl;
-        }
     }
 
     // acyclic check
     if (!acyclic_check()) {
         error_stream << "acyclic check failed\n";
         exit(1);
-    } else if (semant_debug) {
-        error_stream << "acyclic check passed\n"; // should I use error_stream?
     }
 }
 
@@ -119,10 +113,6 @@ bool ClassTable::acyclic_check() {
         auto parent = sym_pair.second;
 
         while (sym_set.find(child) == sym_set.end()) {
-            if (semant_debug) {
-                error_stream << "reach " << child << endl;
-            }
-
             sym_set.insert(child);
             sym_path.insert(child);
             child = parent;
@@ -135,9 +125,6 @@ bool ClassTable::acyclic_check() {
         }
 
         if (sym_path.find(child) != sym_path.end()) {
-            if (semant_debug) {
-                error_stream << "reach " << child << " again!\n";
-            }
             return false;
         }
     }
@@ -347,7 +334,7 @@ Symbols ClassTable::sym_to_types(Symbol mth_name, Symbol class_name)
         class_name = ig[class_name];
     }
 
-    cerr << "Compiler bug: can't reach here in sys_to_types" << endl;
+    cerr << "Compiler bug: can't reach here in sym_to_types" << endl;
     exit(1);
 }
 
@@ -394,9 +381,6 @@ void program_class::semant()
     /* some semantic analysis code may go here */
     for (int i = classes->first(); classes->more(i); i = classes->next(i)) {
         auto class_ = classes->nth(i);
-        if (semant_debug) {
-            cerr << "semant check class" << class_->get_name() << endl;
-        }
         class_->semant(classtable);
     }
 
@@ -427,10 +411,6 @@ void class__class::semant(ClassTableP ct)
     /* semantic checks */
     for (int i = features->first(); features->more(i); i = features->next(i)) {
         features->nth(i)->semant(st, ct, this);
-        if (semant_debug) {
-            ct->semant_error(this)
-                << "finish semnat check feature " << i << endl;
-        }
     }
     st->exitscope();
 }
@@ -459,9 +439,8 @@ void class__class::add_attr(SymTab *st, ClassTableP ct)
 
 void attr_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
-    if (semant_debug) {
-        ct->semant_error(cur->get_filename(), this)
-            << "semnat check attr " << name << ":" << type_decl << endl;
+    if (auto e = dynamic_cast<no_expr_class *>(init)) {
+        return;
     }
 
     init->semant(st, ct, cur);
@@ -473,11 +452,6 @@ void attr_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 
 void method_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
-    if (semant_debug) {
-        ct->semant_error(cur->get_filename(), this)
-            << "semnat check feature " << name << endl;
-    }
-
     st->enterscope();
     /* add formals to symbol table */
     for (int i = formals->first(); formals->more(i); i = formals->next(i)) {
@@ -496,13 +470,13 @@ void method_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     /* expr check */
     expr->semant(st, ct, cur);
 
+    st->exitscope();
     /* return type check */
     if (!ct->less_equal(expr->get_type(), return_type, cur->get_name())) {
         ct->semant_error(cur->get_filename(), this) 
             << "can't return " << expr->get_type() 
             << " to a fuction which returns " << return_type << endl;
     }
-    st->exitscope();
 }
 
 Symbols method_class::to_types()
@@ -559,7 +533,12 @@ void static_dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     }
 
     auto return_type = types.back();
-    if (eqOp(return_type, SELF_TYPE)) {
+    
+    if (!ct->less_equal(expr->get_type(), type_name, cur->get_name())) {
+        ct->semant_error(cur->get_filename(), this)
+            << "can't do " << type_name << " static dispatch on type " << expr->get_type() << endl;
+        type = Object;
+    } else if (eqOp(return_type, SELF_TYPE)) {
         type = expr->get_type();
     } else {
         type = return_type;
