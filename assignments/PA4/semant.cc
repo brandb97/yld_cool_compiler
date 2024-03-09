@@ -572,7 +572,14 @@ void dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     }
 
 
-    for (int i = actual->first(), t_idx = 0; actual->more(i); i = actual->next(i), t_idx++) {
+    int t_idx = 0;
+    for (int i = actual->first(); actual->more(i); i = actual->next(i), t_idx++) {
+        if (t_idx == static_cast<int>(types.size()) - 1) {
+            ct->semant_error(cur->get_filename(), this) 
+                << "provide too mush actual arguments, "
+                << "only " << types.size() << " arguments are needed" << endl;
+        }
+
         auto expr_type = actual->nth(i)->get_type();
         auto type_decl = types[t_idx];
         if (!ct->less_equal(expr_type, type_decl, cur->get_name())) {
@@ -580,6 +587,11 @@ void dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
                 << "can't pass actual argument which has type " << expr_type 
                 << " to argument " << name << " which type is " << type_decl << endl;
         }
+    }
+    if (t_idx != static_cast<int>(types.size()) - 1) {
+            ct->semant_error(cur->get_filename(), this) 
+                << types.size()  << " arguments are needed, "
+                << "only " << t_idx + 1 << " arguments are given" << endl;
     }
 
     auto return_type = types.back();
