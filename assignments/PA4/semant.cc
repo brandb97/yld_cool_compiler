@@ -305,19 +305,19 @@ Class_ ClassTable::sym_to_class(Symbol sym)
 
 bool ClassTable::less_equal(Symbol ltype, Symbol rtype, Symbol cur_type)
 {
-    if (rtype == SELF_TYPE) {
-        return ltype == SELF_TYPE;
-    } else if (ltype == SELF_TYPE) {
+    if (eqOp(rtype, SELF_TYPE)) {
+        return eqOp(ltype, SELF_TYPE);
+    } else if (eqOp(ltype, SELF_TYPE)) {
         ltype = cur_type;
     }
 
     /* both ltype and rtype are not SELF_TYPE now */
-    if (rtype == Object) {
+    if (eqOp(rtype, Object)) {
         return true;
     }
 
-    while (ltype != Object) {
-        if (ltype == rtype) {
+    while (!eqOp(ltype, Object)) {
+        if (eqOp(ltype, rtype)) {
             return true;
         }
 
@@ -335,19 +335,19 @@ Symbols ClassTable::sym_to_types(Symbol mth_name, Symbol class_name)
         auto fts = cls->get_features();
         for (int i = fts->first(); fts->more(i); i = fts->next(i)) {
             if (method_class *m = dynamic_cast<method_class *>(fts->nth(i))) {
-                if (m->get_name() == mth_name) {
+                if (eqOp(m->get_name(), mth_name)) {
                     return m->to_types();
                 }
             }
         }
 
-        if (class_name == Object) {
+        if (eqOp(class_name, Object)) {
             break;
         }
         class_name = ig[class_name];
     }
 
-    cerr << "Compiler bug: can't reach here" << endl;
+    cerr << "Compiler bug: can't reach here in sys_to_types" << endl;
     exit(1);
 }
 
@@ -356,13 +356,13 @@ Symbol ClassTable::lub(Symbol t1, Symbol t2)
     // build t1 path
     SymbolSet t1_path(ig.bucket_count(), hasher, eqOp);
     t1_path.insert(Object);
-    while (t1 != Object) { // buggy code
+    while (!eqOp(t1, Object)) {
         t1_path.insert(t1);
         t1 = ig[t1];
     }
 
-    while (t2 != Object) { // buggy code
-        if (t1_path.find(t2) != t1_path.end()) {
+    while (!eqOp(t2, Object)) {
+          if (t1_path.find(t2) != t1_path.end()) {
             return t2;
         }
         t2 = ig[t2];
@@ -408,10 +408,10 @@ void program_class::semant()
 
 void class__class::semant(ClassTableP ct)
 {
-    if (name == SELF_TYPE) {
+    if (eqOp(name, SELF_TYPE)) {
         ct->semant_error(this) << "class name can't be SELF_TYPE" << endl;
         return;
-    } else if (parent == SELF_TYPE) {
+    } else if (eqOp(parent, SELF_TYPE)) {
         ct->semant_error(this) << "class can't inherits SELF_TYPE" << endl;
         return;
     }
@@ -483,7 +483,7 @@ void method_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     for (int i = formals->first(); formals->more(i); i = formals->next(i)) {
         auto form = formals->nth(i);
         auto td = form->get_type_decl();
-        if (td == SELF_TYPE) {
+        if (eqOp(td, SELF_TYPE)) {
             ct->semant_error(cur->get_filename(), this) 
                 << form << "argument can't be SELF_TYPE" << endl;
             form->set_type_decl(cur->get_name());
@@ -541,7 +541,7 @@ void static_dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
         actual->nth(i)->semant(st, ct, cur);
     }
 
-    if (type_name == SELF_TYPE) {
+    if (eqOp(type_name, SELF_TYPE)) {
         ct->semant_error(cur->get_filename(), this)
             << "dispatch type name can't be SELF_TYPE" << endl;
     }
@@ -559,7 +559,7 @@ void static_dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     }
 
     auto return_type = types.back();
-    if (return_type == SELF_TYPE) {
+    if (eqOp(return_type, SELF_TYPE)) {
         type = expr->get_type();
     } else {
         type = return_type;
@@ -574,7 +574,7 @@ void dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     }
 
     Symbols types;
-    if (expr->get_type() == SELF_TYPE) {
+    if (eqOp(expr->get_type(), SELF_TYPE)) {
         types = ct->sym_to_types(name, cur->get_name());
     } else {
         types = ct->sym_to_types(name, expr->get_type());
@@ -592,7 +592,7 @@ void dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     }
 
     auto return_type = types.back();
-    if (return_type == SELF_TYPE) {
+    if (eqOp(return_type, SELF_TYPE)) {
         type = expr->get_type();
     } else {
         type = return_type;
@@ -605,7 +605,7 @@ void cond_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     then_exp->semant(st, ct, cur);
     else_exp->semant(st, ct, cur);
     
-    if (pred->get_type() != Bool) {
+    if (!eqOp(pred->get_type(), Bool)) {
         ct->semant_error(cur->get_filename(), this)
             << "conditional predication need to have Bool type" 
             << " which is" << pred->get_type() << endl;
@@ -617,7 +617,7 @@ void cond_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 void loop_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
     pred->semant(st, ct, cur);
-    if (pred->get_type() != Bool) {
+    if (!eqOp(pred->get_type(), Bool)) {
         ct->semant_error(cur->get_filename(), this)
             << "predication of while loop should have Bool type" 
             << " which have type " << pred->get_type() << endl;
@@ -701,7 +701,7 @@ bool op_semant(Expression e1, Expression e2, SymTab *st, ClassTableP ct, Class_ 
 {
     e1->semant(st, ct, cur);
     e2->semant(st, ct, cur);
-    if (e1->get_type() != Int || e2->get_type() != Int) {
+    if (!eqOp(e1->get_type(), Int) || !eqOp(e2->get_type(), Int)) {
         ct->semant_error(cur->get_name(), n)
             << "Only Int can do arithmetic operation" << endl;
         return false;
@@ -749,7 +749,7 @@ void divide_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 void neg_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
     e1->semant(st, ct, cur);
-    if (e1->get_type() != Bool) {
+    if (!eqOp(e1->get_type(), Bool)) {
         ct->semant_error(cur->get_filename(), this)
             << "neg can only operate on Bool expression" << endl;
         type = Object;
@@ -769,9 +769,9 @@ void lt_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 
 void eq_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
-    if ((e1->get_type() == Int && e1->get_type() == Int)
-        || (e1->get_type() == Bool && e1->get_type() == Bool)
-        || (e1->get_type() == Str && e1->get_type() == Str)) {
+    if ((eqOp(e1->get_type(), Int) && eqOp(e1->get_type(), Int))
+        || (eqOp(e1->get_type(), Bool) && eqOp(e1->get_type(), Bool))
+        || (eqOp(e1->get_type(), Str) && eqOp(e1->get_type(), Str))) {
         ct->semant_error(cur->get_filename(), this)
             << "eq can only operate on " 
             << "{Int, Int}, {Bool, Bool} or {Str, Str}" << endl;
@@ -794,7 +794,7 @@ void leq_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 void comp_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
 {
     e1->semant(st, ct, cur);
-    if (e1->get_type() != Int) {
+    if (!eqOp(e1->get_type(), Int)) {
         ct->semant_error(cur->get_filename(), this) 
             << "complement can only operate on Int expression" << endl;
         type = Object;
