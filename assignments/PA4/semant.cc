@@ -285,6 +285,9 @@ Class_ ClassTable::sym_to_class(Symbol sym)
                 return cls;
             }
         }
+
+        semant_error() << "can't find undefined class " << sym << endl;
+        return NULL;
     } // must be basic_classes
 
     return sc[sym];
@@ -319,6 +322,9 @@ Symbols ClassTable::sym_to_types(Symbol mth_name, Symbol class_name)
 {
     while (true) {
         auto cls = sym_to_class(class_name);
+        if (cls == NULL) {
+            break;
+        }
         auto fts = cls->get_features();
         for (int i = fts->first(); fts->more(i); i = fts->next(i)) {
             if (method_class *m = dynamic_cast<method_class *>(fts->nth(i))) {
@@ -334,8 +340,8 @@ Symbols ClassTable::sym_to_types(Symbol mth_name, Symbol class_name)
         class_name = ig[class_name];
     }
 
-    cerr << "can't find " << mth_name << " in type "  << class_name << endl;
-    exit(1);
+    semant_error() << "can't find " << mth_name << " in type "  << class_name << endl;
+    return vector<Symbol>{};
 }
 
 Symbol ClassTable::lub(Symbol t1, Symbol t2)
@@ -521,13 +527,13 @@ void static_dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     }
     auto types = ct->sym_to_types(name, type_name);
 
-
     int t_idx = 0;
     for (int i = actual->first(); actual->more(i); i = actual->next(i), t_idx++) {
         if (t_idx == static_cast<int>(types.size()) - 1) {
             ct->semant_error(cur->get_filename(), this) 
                 << "provide too mush actual arguments, "
                 << "only " << types.size() << " arguments are needed" << endl;
+            break;
         }
 
         auto expr_type = actual->nth(i)->get_type();
@@ -578,6 +584,7 @@ void dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
             ct->semant_error(cur->get_filename(), this) 
                 << "provide too mush actual arguments, "
                 << "only " << types.size() << " arguments are needed" << endl;
+            break;
         }
 
         auto expr_type = actual->nth(i)->get_type();
