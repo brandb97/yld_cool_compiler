@@ -334,7 +334,7 @@ Symbols ClassTable::sym_to_types(Symbol mth_name, Symbol class_name)
         class_name = ig[class_name];
     }
 
-    cerr << "Compiler bug: can't reach here in sym_to_types" << endl;
+    cerr << "can't find " << mth_name << " in type "  << class_name << endl;
     exit(1);
 }
 
@@ -522,14 +522,26 @@ void static_dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
     auto types = ct->sym_to_types(name, type_name);
 
 
-    for (int i = actual->first(), t_idx = 0; actual->more(i); i = actual->next(i), t_idx++) {
+    int t_idx = 0;
+    for (int i = actual->first(); actual->more(i); i = actual->next(i), t_idx++) {
+        if (t_idx == static_cast<int>(types.size()) - 1) {
+            ct->semant_error(cur->get_filename(), this) 
+                << "provide too mush actual arguments, "
+                << "only " << types.size() << " arguments are needed" << endl;
+        }
+
         auto expr_type = actual->nth(i)->get_type();
         auto type_decl = types[t_idx];
         if (!ct->less_equal(expr_type, type_decl, cur->get_name())) {
             ct->semant_error(cur->get_filename(), this) 
-                << "can't assign " << expr->get_type() 
-                << " to " << name << " which has type " << type_decl << endl;
+                << "can't pass actual argument which has type " << expr_type 
+                << " to argument " << name << " which type is " << type_decl << endl;
         }
+    }
+    if (t_idx != static_cast<int>(types.size()) - 1) {
+            ct->semant_error(cur->get_filename(), this) 
+                << types.size()  << " arguments are needed, "
+                << "only " << t_idx + 1 << " arguments are given" << endl;
     }
 
     auto return_type = types.back();
@@ -565,8 +577,8 @@ void dispatch_class::semant(SymTab *st, ClassTableP ct, Class_ cur)
         auto type_decl = types[t_idx];
         if (!ct->less_equal(expr_type, type_decl, cur->get_name())) {
             ct->semant_error(cur->get_filename(), this) 
-                << "can't assign " << expr->get_type() 
-                << " to " << name << " which has type " << type_decl << endl;
+                << "can't pass actual argument which has type " << expr_type 
+                << " to argument " << name << " which type is " << type_decl << endl;
         }
     }
 
